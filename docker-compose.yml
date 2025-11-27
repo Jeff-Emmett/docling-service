@@ -1,0 +1,58 @@
+services:
+  docling-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: docling-service:latest
+    container_name: docling-service
+    restart: unless-stopped
+    environment:
+      # Connect to AI orchestrator for summarization (Ollama)
+      - AI_ORCHESTRATOR_URL=http://ai-orchestrator:8080
+      # Connect to semantic search for indexing
+      - SEMANTIC_SEARCH_URL=http://semantic-search:8000
+      # RunPod for Whisper transcription
+      - RUNPOD_API_KEY=${RUNPOD_API_KEY}
+      - RUNPOD_WHISPER_ENDPOINT=lrtisuv8ixbtub
+    labels:
+      # Traefik auto-discovery
+      - "traefik.enable=true"
+      # HTTP router
+      - "traefik.http.routers.docling.rule=Host(`docs.jeffemmett.com`)"
+      - "traefik.http.routers.docling.entrypoints=web"
+      - "traefik.http.services.docling.loadbalancer.server.port=8081"
+      # HTTPS router
+      - "traefik.http.routers.docling-secure.rule=Host(`docs.jeffemmett.com`)"
+      - "traefik.http.routers.docling-secure.entrypoints=websecure"
+      - "traefik.http.routers.docling-secure.tls=true"
+      # Health check for Traefik
+      - "traefik.http.services.docling.loadbalancer.healthcheck.path=/health"
+      - "traefik.http.services.docling.loadbalancer.healthcheck.interval=30s"
+    networks:
+      - traefik-public
+      - ai-internal
+    volumes:
+      # Cache for Docling models (persists across restarts)
+      - docling-cache:/home/appuser/.cache
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+        reservations:
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8081/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  docling-cache:
+    driver: local
+
+networks:
+  traefik-public:
+    external: true
+  ai-internal:
+    external: true

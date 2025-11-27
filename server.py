@@ -20,7 +20,7 @@ from enum import Enum
 import httpx
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import BaseModel, HttpUrl
 
 # Docling imports
@@ -294,9 +294,666 @@ def extract_with_docling(file_path: Path, output_format: OutputFormat) -> tuple[
 
 # ============== API Endpoints ==============
 
-@app.get("/")
-async def root():
-    """Service info and health check"""
+@app.get("/", response_class=HTMLResponse)
+async def dashboard():
+    """Web interface for document processing"""
+    html = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Intelligence - Extract, Summarize, Index</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        header {
+            text-align: center;
+            padding: 40px 0 30px;
+        }
+        h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(90deg, #00d9ff, #00ff88);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #888;
+            font-size: 1.1rem;
+        }
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-top: 30px;
+        }
+        @media (max-width: 900px) {
+            .main-grid { grid-template-columns: 1fr; }
+        }
+        .card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 25px;
+            backdrop-filter: blur(10px);
+        }
+        .card h2 {
+            color: #00d9ff;
+            margin-bottom: 20px;
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #aaa;
+            font-size: 0.9rem;
+        }
+        input[type="text"], input[type="url"], select, textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            background: rgba(0,0,0,0.3);
+            color: #fff;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #00d9ff;
+        }
+        .drop-zone {
+            border: 2px dashed rgba(0,217,255,0.3);
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: rgba(0,217,255,0.02);
+        }
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: #00d9ff;
+            background: rgba(0,217,255,0.08);
+        }
+        .drop-zone-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+        .drop-zone p {
+            color: #888;
+        }
+        .drop-zone .formats {
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 10px;
+        }
+        .file-info {
+            display: none;
+            padding: 15px;
+            background: rgba(0,255,136,0.1);
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+        .file-info.visible { display: block; }
+        .options-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .checkbox-group:hover {
+            background: rgba(0,0,0,0.3);
+        }
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #00d9ff;
+        }
+        .btn {
+            width: 100%;
+            padding: 14px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: linear-gradient(90deg, #00d9ff, #00b8d4);
+            color: #000;
+        }
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,217,255,0.3);
+        }
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn-secondary {
+            background: rgba(255,255,255,0.1);
+            color: #fff;
+            margin-top: 10px;
+        }
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.15);
+        }
+        .results-card {
+            grid-column: 1 / -1;
+        }
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+        }
+        .status.processing {
+            background: rgba(255,193,7,0.2);
+            color: #ffc107;
+        }
+        .status.success {
+            background: rgba(0,255,136,0.2);
+            color: #00ff88;
+        }
+        .status.error {
+            background: rgba(255,82,82,0.2);
+            color: #ff5252;
+        }
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid transparent;
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 20px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 5px;
+        }
+        .tab {
+            padding: 10px 20px;
+            background: transparent;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            border-radius: 8px 8px 0 0;
+            transition: all 0.2s;
+        }
+        .tab:hover { color: #fff; }
+        .tab.active {
+            background: rgba(0,217,255,0.1);
+            color: #00d9ff;
+        }
+        .tab-content {
+            display: none;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .tab-content.active { display: block; }
+        .content-display {
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            padding: 20px;
+            white-space: pre-wrap;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.9rem;
+            line-height: 1.7;
+        }
+        .summary-display {
+            background: linear-gradient(135deg, rgba(0,217,255,0.1), rgba(0,255,136,0.1));
+            border-left: 3px solid #00d9ff;
+            padding: 20px;
+            border-radius: 0 8px 8px 0;
+        }
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+        .meta-item {
+            background: rgba(0,0,0,0.2);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .meta-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #00d9ff;
+        }
+        .meta-label {
+            font-size: 0.8rem;
+            color: #888;
+            margin-top: 5px;
+        }
+        .indexed-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            background: rgba(0,255,136,0.2);
+            color: #00ff88;
+            border-radius: 20px;
+            font-size: 0.9rem;
+        }
+        .stats-bar {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 30px;
+            padding: 20px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 12px;
+        }
+        .stat {
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #00d9ff;
+        }
+        .stat-label {
+            font-size: 0.75rem;
+            color: #666;
+        }
+        #results { display: none; }
+        #results.visible { display: block; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Document Intelligence</h1>
+            <p class="subtitle">Extract, summarize, and index documents into your knowledge base</p>
+        </header>
+
+        <div class="main-grid">
+            <!-- Input Card -->
+            <div class="card">
+                <h2><span>📄</span> Input Source</h2>
+
+                <div class="input-group">
+                    <label for="url-input">URL (webpage, PDF, document)</label>
+                    <input type="url" id="url-input" placeholder="https://example.com/document.pdf">
+                </div>
+
+                <div style="text-align: center; color: #666; margin: 15px 0;">— or —</div>
+
+                <div class="drop-zone" id="drop-zone">
+                    <div class="drop-zone-icon">📁</div>
+                    <p>Drop a file here or click to browse</p>
+                    <p class="formats">PDF, DOCX, PPTX, XLSX, HTML, MD, TXT, EPUB, images, audio</p>
+                    <input type="file" id="file-input" hidden accept=".pdf,.docx,.pptx,.xlsx,.html,.md,.txt,.epub,.png,.jpg,.jpeg,.tiff,.bmp,.gif,.mp3,.wav,.m4a,.ogg,.flac,.webm">
+                </div>
+                <div class="file-info" id="file-info">
+                    <strong id="file-name"></strong>
+                    <span id="file-size" style="color: #888; margin-left: 10px;"></span>
+                </div>
+            </div>
+
+            <!-- Options Card -->
+            <div class="card">
+                <h2><span>⚙️</span> Processing Options</h2>
+
+                <div class="input-group">
+                    <label for="summary-style">Summary Style</label>
+                    <select id="summary-style">
+                        <option value="concise">Concise (2-3 sentences)</option>
+                        <option value="bullet_points">Bullet Points</option>
+                        <option value="detailed">Detailed</option>
+                        <option value="technical">Technical</option>
+                        <option value="eli5">ELI5 (Simple explanation)</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label for="output-format">Output Format</label>
+                    <select id="output-format">
+                        <option value="markdown">Markdown</option>
+                        <option value="text">Plain Text</option>
+                        <option value="html">HTML</option>
+                        <option value="json">JSON</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
+                    <label>Actions</label>
+                    <div class="options-grid">
+                        <label class="checkbox-group">
+                            <input type="checkbox" id="do-summarize" checked>
+                            <span>Generate Summary</span>
+                        </label>
+                        <label class="checkbox-group">
+                            <input type="checkbox" id="do-index">
+                            <span>Index to Knowledge Base</span>
+                        </label>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" id="process-btn" onclick="processDocument()">
+                    Process Document
+                </button>
+                <button class="btn btn-secondary" onclick="clearAll()">Clear</button>
+            </div>
+
+            <!-- Results Card -->
+            <div class="card results-card" id="results">
+                <div class="results-header">
+                    <h2><span>📊</span> Results</h2>
+                    <div>
+                        <span class="status" id="status">
+                            <span class="spinner"></span>
+                            Processing...
+                        </span>
+                        <span class="indexed-badge hidden" id="indexed-badge">
+                            ✓ Indexed to Knowledge Base
+                        </span>
+                    </div>
+                </div>
+
+                <div class="meta-grid" id="meta-grid" style="margin-bottom: 20px;">
+                    <div class="meta-item">
+                        <div class="meta-value" id="meta-pages">-</div>
+                        <div class="meta-label">Pages</div>
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-value" id="meta-tables">-</div>
+                        <div class="meta-label">Tables</div>
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-value" id="meta-figures">-</div>
+                        <div class="meta-label">Figures</div>
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-value" id="meta-chars">-</div>
+                        <div class="meta-label">Characters</div>
+                    </div>
+                </div>
+
+                <div class="tabs">
+                    <button class="tab active" onclick="switchTab('summary')">Summary</button>
+                    <button class="tab" onclick="switchTab('content')">Full Content</button>
+                    <button class="tab" id="transcript-tab" style="display:none;" onclick="switchTab('transcript')">Transcript</button>
+                </div>
+
+                <div class="tab-content active" id="tab-summary">
+                    <div class="summary-display" id="summary-content">
+                        Processing...
+                    </div>
+                </div>
+                <div class="tab-content" id="tab-content">
+                    <div class="content-display" id="full-content">
+                        Loading content...
+                    </div>
+                </div>
+                <div class="tab-content" id="tab-transcript">
+                    <div class="content-display" id="transcript-content">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="stats-bar">
+            <div class="stat">
+                <div class="stat-value" id="stat-docs">""" + str(stats["documents_processed"]) + """</div>
+                <div class="stat-label">Documents Processed</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="stat-pages">""" + str(stats["pages_extracted"]) + """</div>
+                <div class="stat-label">Pages Extracted</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="stat-audio">""" + str(stats["audio_transcribed"]) + """</div>
+                <div class="stat-label">Audio Transcribed</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const fileInfo = document.getElementById('file-info');
+        let selectedFile = null;
+
+        // Drag and drop
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            selectedFile = file;
+            document.getElementById('file-name').textContent = file.name;
+            document.getElementById('file-size').textContent = formatBytes(file.size);
+            fileInfo.classList.add('visible');
+            document.getElementById('url-input').value = '';
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('tab-' + tab).classList.add('active');
+        }
+
+        function clearAll() {
+            document.getElementById('url-input').value = '';
+            selectedFile = null;
+            fileInfo.classList.remove('visible');
+            document.getElementById('results').classList.remove('visible');
+        }
+
+        async function processDocument() {
+            const url = document.getElementById('url-input').value.trim();
+            const summarize = document.getElementById('do-summarize').checked;
+            const indexToSearch = document.getElementById('do-index').checked;
+            const summaryStyle = document.getElementById('summary-style').value;
+            const outputFormat = document.getElementById('output-format').value;
+
+            if (!url && !selectedFile) {
+                alert('Please provide a URL or upload a file');
+                return;
+            }
+
+            // Show results and set processing state
+            const results = document.getElementById('results');
+            const status = document.getElementById('status');
+            const processBtn = document.getElementById('process-btn');
+
+            results.classList.add('visible');
+            status.className = 'status processing';
+            status.innerHTML = '<span class="spinner"></span> Processing...';
+            processBtn.disabled = true;
+            document.getElementById('indexed-badge').classList.add('hidden');
+
+            try {
+                let response;
+                const isAudio = selectedFile && /\\.(mp3|wav|m4a|ogg|flac|webm)$/i.test(selectedFile.name);
+
+                if (selectedFile) {
+                    const formData = new FormData();
+                    formData.append('file', selectedFile);
+                    formData.append('summarize', summarize);
+                    formData.append('summarize_style', summaryStyle);
+                    formData.append('index_to_search', indexToSearch);
+                    if (!isAudio) {
+                        formData.append('output_format', outputFormat);
+                    }
+
+                    const endpoint = isAudio ? '/transcribe/upload' : '/extract/upload';
+                    response = await fetch(endpoint, {
+                        method: 'POST',
+                        body: formData
+                    });
+                } else {
+                    // Check if URL points to audio
+                    const urlIsAudio = /\\.(mp3|wav|m4a|ogg|flac|webm)(\\?|$)/i.test(url);
+                    const endpoint = urlIsAudio ? '/transcribe' : '/extract';
+
+                    const payload = urlIsAudio ? {
+                        url: url,
+                        summarize: summarize,
+                        summarize_style: summaryStyle
+                    } : {
+                        url: url,
+                        output_format: outputFormat,
+                        summarize: summarize,
+                        summarize_style: summaryStyle,
+                        index_to_search: indexToSearch
+                    };
+
+                    response = await fetch(endpoint, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                }
+
+                const data = await response.json();
+
+                if (data.success) {
+                    status.className = 'status success';
+                    status.textContent = '✓ Complete';
+
+                    // Handle audio transcription
+                    if (data.transcript !== undefined) {
+                        document.getElementById('transcript-tab').style.display = 'block';
+                        document.getElementById('transcript-content').textContent = data.transcript || 'No transcript available';
+                        document.getElementById('full-content').textContent = data.transcript || '';
+                        document.getElementById('meta-pages').textContent = '-';
+                        document.getElementById('meta-tables').textContent = '-';
+                        document.getElementById('meta-figures').textContent = '-';
+                        document.getElementById('meta-chars').textContent = data.transcript ? data.transcript.length.toLocaleString() : '0';
+
+                        // Switch to transcript tab
+                        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                        document.getElementById('transcript-tab').classList.add('active');
+                        document.getElementById('tab-transcript').classList.add('active');
+                    } else {
+                        document.getElementById('transcript-tab').style.display = 'none';
+                        document.getElementById('full-content').textContent = data.content || 'No content extracted';
+
+                        const meta = data.metadata || {};
+                        document.getElementById('meta-pages').textContent = meta.pages || '-';
+                        document.getElementById('meta-tables').textContent = meta.tables || '-';
+                        document.getElementById('meta-figures').textContent = meta.figures || '-';
+                        document.getElementById('meta-chars').textContent = data.content ? data.content.length.toLocaleString() : '0';
+                    }
+
+                    document.getElementById('summary-content').textContent = data.summary || 'No summary generated';
+
+                    if (data.indexed) {
+                        document.getElementById('indexed-badge').classList.remove('hidden');
+                    }
+
+                    // Update stats
+                    fetchStats();
+                } else {
+                    status.className = 'status error';
+                    status.textContent = '✗ Error';
+                    document.getElementById('summary-content').textContent = 'Error: ' + (data.error || 'Unknown error');
+                    document.getElementById('full-content').textContent = '';
+                }
+            } catch (err) {
+                status.className = 'status error';
+                status.textContent = '✗ Error';
+                document.getElementById('summary-content').textContent = 'Error: ' + err.message;
+            } finally {
+                processBtn.disabled = false;
+            }
+        }
+
+        async function fetchStats() {
+            try {
+                const resp = await fetch('/stats');
+                const stats = await resp.json();
+                document.getElementById('stat-docs').textContent = stats.documents_processed || 0;
+                document.getElementById('stat-pages').textContent = stats.pages_extracted || 0;
+                document.getElementById('stat-audio').textContent = stats.audio_transcribed || 0;
+            } catch (e) {}
+        }
+
+        // Initial stats load
+        fetchStats();
+    </script>
+</body>
+</html>
+    """
+    return HTMLResponse(content=html)
+
+
+@app.get("/api/info")
+async def api_info():
+    """Service info (JSON API endpoint)"""
     return {
         "service": "Docling Service",
         "version": "1.0.0",
